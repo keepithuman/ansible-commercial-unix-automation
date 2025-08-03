@@ -1,0 +1,30 @@
+---
+# Configure AIX NIM client
+
+- name: Check if NIM client is configured
+  command: lsnim -l
+  register: nim_status
+  failed_when: false
+  changed_when: false
+
+- name: Configure NIM client
+  block:
+    - name: Add NIM master to /etc/hosts
+      lineinfile:
+        path: /etc/hosts
+        line: "{{ nim_master_ip }}\t{{ nim_server }}"
+      when: nim_master_ip is defined
+
+    - name: Initialize NIM client
+      command: |
+        niminit -a name={{ inventory_hostname }} \
+                -a master={{ nim_server }} \
+                -a connect=nimsh
+      when: "'0042-001' in nim_status.stderr"
+
+    - name: Start nimsh daemon
+      service:
+        name: nimsh
+        state: started
+        enabled: yes
+  when: nim_server is defined

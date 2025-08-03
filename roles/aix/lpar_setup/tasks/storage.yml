@@ -1,0 +1,34 @@
+---
+# Configure AIX storage
+
+- name: List physical volumes
+  command: lspv
+  register: pv_list
+  changed_when: false
+
+- name: List volume groups
+  command: lsvg
+  register: vg_list
+  changed_when: false
+
+- name: Extend rootvg if needed
+  command: extendvg rootvg {{ item }}
+  loop: "{{ additional_disks | default([]) }}"
+  when: 
+    - additional_disks is defined
+    - item not in pv_list.stdout
+
+- name: Create application volume group
+  command: mkvg -y {{ app_vg | default('appvg') }} {{ app_disks | join(' ') }}
+  when:
+    - app_disks is defined
+    - app_vg | default('appvg') not in vg_list.stdout
+
+- name: Create filesystems
+  aix_filesystem:
+    filesystem: "{{ item.filesystem }}"
+    vg: "{{ item.vg | default('rootvg') }}"
+    size: "{{ item.size }}"
+    mount: "{{ item.mount }}"
+    state: present
+  loop: "{{ aix_filesystems | default([]) }}"

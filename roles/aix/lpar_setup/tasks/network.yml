@@ -1,0 +1,33 @@
+---
+# Configure AIX network interfaces
+
+- name: Get network interfaces
+  command: lsdev -Cc if
+  register: interfaces
+  changed_when: false
+
+- name: Configure primary interface
+  command: |
+    mktcpip -h {{ inventory_hostname }} \
+            -a {{ ansible_default_ipv4.address }} \
+            -m {{ ansible_default_ipv4.netmask }} \
+            -i {{ ansible_default_ipv4.interface }} \
+            -g {{ ansible_default_ipv4.gateway | default('') }}
+  when: 
+    - ansible_default_ipv4 is defined
+    - configure_network | default(false) | bool
+
+- name: Set DNS servers
+  lineinfile:
+    path: /etc/resolv.conf
+    line: "nameserver {{ item }}"
+    create: yes
+  loop: "{{ dns_servers }}"
+  when: dns_servers is defined
+
+- name: Configure /etc/hosts
+  lineinfile:
+    path: /etc/hosts
+    line: "{{ ansible_default_ipv4.address }}\t{{ inventory_hostname }}\t{{ inventory_hostname.split('.')[0] }}"
+    create: yes
+  when: ansible_default_ipv4.address is defined

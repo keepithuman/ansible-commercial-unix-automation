@@ -1,0 +1,24 @@
+---
+# AIX LPAR initial setup tasks
+
+- name: Set system hostname
+  command: hostname {{ inventory_hostname }}
+  when: ansible_hostname != inventory_hostname
+
+- name: Configure network interfaces
+  include_tasks: network.yml
+
+- name: Configure storage
+  include_tasks: storage.yml
+
+- name: Set timezone
+  command: chtz {{ timezone | default('UTC') }}
+  register: tz_result
+  changed_when: tz_result.rc == 0
+  failed_when: false
+
+- name: Configure system parameters
+  include_tasks: system_params.yml
+
+- name: Install base software
+  include_tasks: software.yml

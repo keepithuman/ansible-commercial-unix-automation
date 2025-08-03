@@ -1,0 +1,28 @@
+---
+# AIX LPAR Initial Setup Playbook
+
+- name: AIX LPAR Provisioning
+  hosts: aix
+  gather_facts: yes
+  
+  tasks:
+    - name: Display LPAR information
+      debug:
+        msg: "Setting up AIX LPAR: {{ inventory_hostname }}"
+    
+    - name: Configure AIX LPAR
+      include_role:
+        name: aix/lpar_setup
+    
+    - name: Configure NIM client
+      include_role:
+        name: aix/nim_client
+      when: nim_server is defined
+    
+    - name: Apply AIX security baseline
+      include_role:
+        name: aix/security
+    
+    - name: Configure performance tuning
+      include_role:
+        name: aix/performance

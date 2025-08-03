@@ -1,0 +1,72 @@
+---
+# AIX SUMA (Service Update Management Assistant) Patching Playbook
+
+- name: AIX SUMA Patch Management
+  hosts: aix
+  gather_facts: yes
+  serial: "{{ patch_serial | default(2) }}"
+  
+  pre_tasks:
+    - name: Check current AIX level
+      command: oslevel -s
+      register: current_level
+      changed_when: false
+    
+    - name: Display current level
+      debug:
+        msg: "Current AIX level: {{ current_level.stdout }}"
+  
+  tasks:
+    - name: Create backup before patching
+      include_role:
+        name: aix/backup
+      when: create_backup | default(true) | bool
+    
+    - name: Run SUMA preview
+      command: |
+        suma -x -a Action=Preview \
+             -a RqType={{ suma_rq_type }} \
+             -a FilterML={{ suma_filter_ml }}
+      register: suma_preview
+      when: preview_only | default(false) | bool
+    
+    - name: Display preview results
+      debug:
+        var: suma_preview.stdout_lines
+      when: preview_only | default(false) | bool
+    
+    - name: Download and install updates
+      block:
+        - name: Download fixes
+          command: |
+            suma -x -a Action=Download \
+                 -a RqType={{ suma_rq_type }} \
+                 -a FilterML={{ suma_filter_ml }} \
+                 -a DLTarget=/suma/download
+          when: not preview_only | default(false) | bool
+        
+        - name: Install fixes
+          command: |
+            suma -x -a Action=Install \
+                 -a RqType={{ suma_rq_type }} \
+                 -a FilterML={{ suma_filter_ml }}
+          when: 
+            - not preview_only | default(false) | bool
+            - install_updates | default(false) | bool
+      
+      rescue:
+        - name: Cleanup failed SUMA operation
+          command: suma -x -a Action=Clean
+          failed_when: false
+  
+  post_tasks:
+    - name: Check new AIX level
+      command: oslevel -s
+      register: new_level
+      changed_when: false
+    
+    - name: Report patching results
+      debug:
+        msg:
+          - "Previous level: {{ current_level.stdout }}"
+          - "New level: {{ new_level.stdout }}"

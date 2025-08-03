@@ -1,0 +1,104 @@
+---
+# AIX Technology Level Upgrade Playbook
+
+- name: AIX Technology Level Upgrade
+  hosts: aix
+  gather_facts: yes
+  serial: 1  # Upgrade one system at a time
+  
+  vars:
+    target_tl: "{{ aix_target_tl | mandatory }}"
+    nim_lpp_source: "{{ nim_tl_lpp_source | mandatory }}"
+    nim_spot: "{{ nim_tl_spot | mandatory }}"
+  
+  pre_tasks:
+    - name: Check current technology level
+      command: oslevel -s
+      register: current_tl
+      changed_when: false
+    
+    - name: Display current TL
+      debug:
+        msg: "Current Technology Level: {{ current_tl.stdout }}"
+    
+    - name: Verify target TL is newer
+      fail:
+        msg: "Target TL must be newer than current"
+      when: target_tl <= current_tl.stdout
+    
+    - name: Create mksysb backup
+      command: |
+        mksysb -i -e /backup/pre_tl_upgrade_{{ inventory_hostname }}_{{ ansible_date_time.epoch }}.mksysb
+      when: create_pre_upgrade_backup | default(true) | bool
+  
+  tasks:
+    - name: Check for filesystem space
+      shell: |
+        df -g /usr | tail -1 | awk '{if ($4 < 2) exit 1}'
+        df -g /opt | tail -1 | awk '{if ($4 < 1) exit 1}'
+        df -g /tmp | tail -1 | awk '{if ($4 < 2) exit 1}'
+      register: space_check
+      failed_when: space_check.rc != 0
+    
+    - name: Commit previous updates
+      command: installp -c all
+      register: commit_result
+      failed_when: false
+    
+    - name: Preview TL upgrade
+      command: |
+        nim -o cust -a lpp_source={{ nim_lpp_source }} \
+            -a fixes=update_all \
+            -a preview=yes \
+            {{ inventory_hostname }}
+      register: tl_preview
+      when: preview_mode | default(true) | bool
+    
+    - name: Display preview results
+      debug:
+        var: tl_preview.stdout_lines
+      when: tl_preview is defined
+    
+    - name: Perform TL upgrade
+      block:
+        - name: Start TL upgrade via NIM
+          command: |
+            nim -o cust -a lpp_source={{ nim_lpp_source }} \
+                -a fixes=update_all \
+                -a accept_licenses=yes \
+                {{ inventory_hostname }}
+          when: perform_upgrade | default(false) | bool
+        
+        - name: Wait for upgrade to complete
+          wait_for:
+            timeout: 7200  # 2 hours max
+          when: perform_upgrade | default(false) | bool
+      
+      rescue:
+        - name: Check NIM operation status
+          command: lsnim -l {{ inventory_hostname }}
+          register: nim_status
+        
+        - name: Display NIM status
+          debug:
+            var: nim_status.stdout_lines
+    
+    - name: Reboot system if required
+      reboot:
+        reboot_timeout: 1800
+      when:
+        - perform_upgrade | default(false) | bool
+        - reboot_after_upgrade | default(true) | bool
+  
+  post_tasks:
+    - name: Verify new technology level
+      command: oslevel -s
+      register: new_tl
+      changed_when: false
+    
+    - name: Compare TL versions
+      debug:
+        msg:
+          - "Previous TL: {{ current_tl.stdout }}"
+          - "New TL: {{ new_tl.stdout }}"
+          - "Upgrade successful: {{ new_tl.stdout == target_tl }}"

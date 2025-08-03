@@ -1,0 +1,108 @@
+---
+# HP-UX OS Upgrade Playbook
+
+- name: HP-UX Operating System Upgrade
+  hosts: hpux
+  gather_facts: yes
+  serial: 1
+  
+  vars:
+    target_version: "{{ hpux_target_version | mandatory }}"
+    update_source: "{{ hpux_update_source | mandatory }}"
+  
+  pre_tasks:
+    - name: Check current HP-UX version
+      command: uname -r
+      register: current_version
+      changed_when: false
+    
+    - name: Display system info
+      debug:
+        msg:
+          - "Current version: {{ current_version.stdout }}"
+          - "Target version: {{ target_version }}"
+    
+    - name: Check system prerequisites
+      shell: |
+        /usr/contrib/bin/machinfo | grep -i memory | awk '{print $2}'
+        bdf / | tail -1 | awk '{print $4}'
+      register: system_check
+    
+    - name: Create Ignite-UX backup
+      command: |
+        make_net_recovery -s {{ ignite_server }} \
+                         -x inc_entire=vg00 \
+                         -x inc_entire=vg01
+      when:
+        - create_ignite_backup | default(true) | bool
+        - ignite_server is defined
+  
+  tasks:
+    - name: Mount update media
+      mount:
+        path: /mnt/upgrade
+        src: "{{ update_source }}"
+        fstype: nfs
+        state: mounted
+      when: update_source is match(".*:.*")
+    
+    - name: Run update-ux preview
+      command: |
+        update-ux -p -s {{ update_source }} '*'
+      register: update_preview
+      when: preview_mode | default(true) | bool
+    
+    - name: Display preview results
+      debug:
+        var: update_preview.stdout_lines
+      when: update_preview is defined
+    
+    - name: Perform HP-UX upgrade
+      block:
+        - name: Start update-ux
+          command: |
+            update-ux -s {{ update_source }} \
+                     -x autoreboot=false \
+                     -x patch_save_files=true \
+                     '*'
+          async: 14400  # 4 hours
+          poll: 300     # Check every 5 minutes
+          when: perform_upgrade | default(false) | bool
+        
+        - name: Verify upgrade completion
+          command: swlist -l bundle | grep -i HPUX{{ target_version | replace('.', '') }}
+          register: upgrade_verify
+          failed_when: upgrade_verify.rc != 0
+          when: perform_upgrade | default(false) | bool
+      
+      rescue:
+        - name: Check swagent log
+          command: tail -50 /var/adm/sw/swagent.log
+          register: swagent_log
+        
+        - name: Display error log
+          debug:
+            var: swagent_log.stdout_lines
+  
+  post_tasks:
+    - name: Clean up
+      mount:
+        path: /mnt/upgrade
+        state: unmounted
+      when: update_source is match(".*:.*")
+    
+    - name: Generate upgrade report
+      shell: |
+        echo "HP-UX Upgrade Report"
+        echo "==================="
+        echo "Previous version: {{ current_version.stdout }}"
+        echo "Current version: $(uname -r)"
+        echo ""
+        echo "Installed bundles:"
+        swlist -l bundle | grep -E "^  (HPUX|Base|Required)"
+      register: upgrade_report
+    
+    - name: Save upgrade report
+      copy:
+        content: "{{ upgrade_report.stdout }}"
+        dest: "/var/adm/upgrade_report_{{ ansible_date_time.epoch }}.txt"

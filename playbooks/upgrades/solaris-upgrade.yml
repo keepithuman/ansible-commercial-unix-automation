@@ -1,0 +1,90 @@
+---
+# Solaris Version Upgrade Playbook
+
+- name: Solaris OS Upgrade
+  hosts: solaris
+  gather_facts: yes
+  serial: 1
+  
+  vars:
+    target_version: "{{ solaris_target_version | mandatory }}"
+    upgrade_method: "{{ solaris_upgrade_method | default('pkg') }}"  # pkg or AI
+  
+  pre_tasks:
+    - name: Check current Solaris version
+      command: cat /etc/release
+      register: current_release
+      changed_when: false
+    
+    - name: Display current version
+      debug:
+        var: current_release.stdout_lines
+    
+    - name: Create BE snapshot
+      command: beadm create pre-upgrade-{{ ansible_date_time.epoch }}
+      when: ansible_distribution_version is version('11', '>=')
+  
+  tasks:
+    - name: Solaris 11+ pkg upgrade
+      block:
+        - name: Update package repository
+          command: |
+            pkg set-publisher -G '*' -g {{ pkg_repository }} solaris
+          when: pkg_repository is defined
+        
+        - name: Check available updates
+          command: pkg list -af entire
+          register: available_versions
+          changed_when: false
+        
+        - name: Preview upgrade
+          command: pkg update -nv --accept --be-name upgrade-{{ target_version }}
+          register: upgrade_preview
+          when: preview_mode | default(true) | bool
+        
+        - name: Perform upgrade
+          command: pkg update --accept --be-name upgrade-{{ target_version }}
+          when:
+            - perform_upgrade | default(false) | bool
+            - not preview_mode | default(true) | bool
+        
+        - name: Activate new BE
+          command: beadm activate upgrade-{{ target_version }}
+          when:
+            - perform_upgrade | default(false) | bool
+            - activate_be | default(true) | bool
+      when:
+        - ansible_distribution_version is version('11', '>=')
+        - upgrade_method == 'pkg'
+    
+    - name: Solaris 10 upgrade preparation
+      block:
+        - name: Check Live Upgrade packages
+          command: pkginfo -l SUNWluu SUNWlur SUNWlucfg
+          register: lu_check
+          failed_when: lu_check.rc != 0
+        
+        - name: Create alternate BE
+          command: |
+            lucreate -n upgrade-{{ target_version }} \
+                     -m /:/dev/dsk/c0t1d0s0:ufs
+          when: perform_upgrade | default(false) | bool
+      when:
+        - ansible_distribution_version is version('11', '<')
+        - upgrade_method == 'lu'
+  
+  post_tasks:
+    - name: List boot environments
+      command: beadm list
+      register: be_list
+      when: ansible_distribution_version is version('11', '>=')
+    
+    - name: Display BE list
+      debug:
+        var: be_list.stdout_lines
+      when: be_list is defined
+    
+    - name: Schedule reboot
+      debug:
+        msg: "System ready for reboot into new BE. Schedule maintenance window."
+      when: perform_upgrade | default(false) | bool

@@ -1,0 +1,31 @@
+---
+# HP-UX System Setup Playbook
+
+- name: HP-UX System Provisioning
+  hosts: hpux
+  gather_facts: yes
+  
+  tasks:
+    - name: Display system information
+      debug:
+        msg:
+          - "Setting up HP-UX system: {{ inventory_hostname }}"
+          - "HP-UX Version: {{ ansible_distribution_version }}"
+    
+    - name: Configure HP-UX system
+      include_role:
+        name: hpux/system_setup
+    
+    - name: Configure software depot
+      include_role:
+        name: hpux/swdepot
+      when: depot_server is defined
+    
+    - name: Configure kernel parameters
+      include_role:
+        name: hpux/kernel
+    
+    - name: Setup ServiceGuard if required
+      include_role:
+        name: hpux/serviceguard
+      when: serviceguard_enabled | default(false) | bool

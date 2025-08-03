@@ -1,0 +1,23 @@
+---
+# HP-UX kernel parameter configuration
+
+- name: Get current kernel parameters
+  command: kctune
+  register: current_kctune
+  changed_when: false
+
+- name: Set kernel parameters
+  command: kctune {{ item.key }}={{ item.value }}
+  loop: "{{ kernel_params | dict2items }}"
+  when: item.key + '=' + item.value|string not in current_kctune.stdout
+  register: kctune_changes
+
+- name: Check if reboot required
+  set_fact:
+    reboot_required: true
+  when: kctune_changes.changed
+
+- name: Display reboot requirement
+  debug:
+    msg: "Kernel parameter changes require a reboot"
+  when: reboot_required | default(false) | bool

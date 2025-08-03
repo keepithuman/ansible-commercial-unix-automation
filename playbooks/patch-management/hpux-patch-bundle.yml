@@ -1,0 +1,77 @@
+---
+# HP-UX Patch Bundle Installation Playbook
+
+- name: HP-UX Patch Management
+  hosts: hpux
+  gather_facts: yes
+  serial: "{{ patch_serial | default(1) }}"
+  
+  pre_tasks:
+    - name: Check HP-UX version
+      command: uname -r
+      register: hpux_version
+      changed_when: false
+    
+    - name: Create Ignite backup
+      command: |
+        make_net_recovery -s {{ ignite_server }} \
+                         -x inc_entire=vg00 \
+                         -x exclude=/tmp -x exclude=/var/tmp
+      when:
+        - create_ignite_backup | default(true) | bool
+        - ignite_server is defined
+  
+  tasks:
+    - name: Check installed patches
+      command: swlist -l patch
+      register: installed_patches
+      changed_when: false
+    
+    - name: List available patches from depot
+      command: swlist -s {{ depot_server }}:{{ depot_path }}
+      register: available_patches
+      changed_when: false
+      when: depot_server is defined
+    
+    - name: Preview patch installation
+      command: |
+        swinstall -p -s {{ depot_server }}:{{ depot_path }} \
+                  -x autoreboot=false \
+                  -x patch_match_target=true \
+                  '*'
+      register: patch_preview
+      when:
+        - depot_server is defined
+        - preview_only | default(true) | bool
+    
+    - name: Install patches
+      command: |
+        swinstall -s {{ depot_server }}:{{ depot_path }} \
+                  -x autoreboot=false \
+                  -x patch_match_target=true \
+                  {{ patch_bundle | default('*') }}
+      when:
+        - depot_server is defined
+        - not preview_only | default(true) | bool
+        - install_patches | default(false) | bool
+    
+    - name: Verify patch installation
+      command: swverify '*'
+      register: verify_result
+      failed_when: verify_result.rc != 0
+  
+  post_tasks:
+    - name: Generate patch report
+      shell: |
+        echo "=== HP-UX Patch Report ==="
+        echo "System: $(hostname)"
+        echo "Date: $(date)"
+        echo ""
+        echo "Installed Patches:"
+        swlist -l patch | tail -20
+      register: patch_report
+    
+    - name: Save patch report
+      copy:
+        content: "{{ patch_report.stdout }}"
+        dest: "/var/adm/sw/patch_report_{{ ansible_date_time.epoch }}.txt"

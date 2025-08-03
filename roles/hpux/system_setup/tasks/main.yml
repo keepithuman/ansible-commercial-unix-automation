@@ -1,0 +1,21 @@
+---
+# HP-UX system setup tasks
+
+- name: Set hostname
+  command: hostname {{ inventory_hostname }}
+  when: ansible_hostname != inventory_hostname
+
+- name: Configure network
+  include_tasks: network.yml
+
+- name: Configure swap space
+  include_tasks: swap.yml
+
+- name: Set system parameters
+  include_tasks: system_params.yml
+
+- name: Configure system logging
+  include_tasks: logging.yml
+
+- name: Install required software
+  include_tasks: software.yml

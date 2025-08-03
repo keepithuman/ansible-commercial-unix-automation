@@ -1,0 +1,42 @@
+---
+# Common variables for all commercial Unix systems
+
+# SSH settings
+ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+ansible_ssh_pipelining: true
+
+# Common paths
+temp_dir: /tmp
+log_dir: /var/log
+backup_dir: /backup
+
+# User management
+default_shell: /bin/ksh
+default_groups:
+  - staff
+  - users
+
+# Security settings
+enable_audit: true
+password_min_length: 8
+password_history: 12
+account_lockout_threshold: 5
+
+# Monitoring
+monitoring_enabled: true
+health_check_interval: 300  # seconds
+
+# Backup settings
+backup_enabled: true
+backup_retention_days: 30
+backup_schedule: "0 2 * * *"  # 2 AM daily
+
+# Common services
+common_services:
+  - sshd
+  - syslog
+  - cron
+
+# Email notifications
+alert_email: unix-admins@example.com
+smtp_server: smtp.example.com

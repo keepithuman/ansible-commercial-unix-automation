@@ -1,0 +1,46 @@
+---
+# Solaris-specific variables
+
+# Solaris version info
+solaris_versions:
+  - "10"
+  - "11.3"
+  - "11.4"
+
+# Package management
+pkg_publisher: solaris
+pkg_origin_uri: https://pkg.oracle.com/solaris/release/
+ips_timeout: 300
+
+# Zone configuration
+zone_defaults:
+  brand: native
+  autoboot: true
+  limitpriv: default
+  scheduling_class: FSS
+
+# ZFS settings
+zfs_defaults:
+  compression: lz4
+  atime: off
+  recordsize: 128k
+
+# Solaris specific paths
+solaris_admin_dir: /var/sadm
+solaris_patch_dir: /var/sadm/patch
+
+# SMF services
+smf_services:
+  - "svc:/network/ssh:default": enabled
+  - "svc:/system/fmd:default": enabled
+  - "svc:/network/ntp:default": enabled
+
+# Network settings
+dladm_settings:
+  mtu: 9000
+  flowctrl: bi
+
+# Resource controls
+resource_controls:
+  project.max-shm-memory: 8GB
+  process.max-file-descriptor: 65536

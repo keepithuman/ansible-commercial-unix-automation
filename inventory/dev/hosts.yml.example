@@ -1,0 +1,56 @@
+---
+# Example inventory file for commercial Unix systems
+
+all:
+  children:
+    aix:
+      hosts:
+        aix-dev-01:
+          ansible_host: 10.0.1.10
+          ansible_user: root
+          lpar_id: 1
+          nim_server: nim01.example.com
+        aix-dev-02:
+          ansible_host: 10.0.1.11
+          ansible_user: root
+          lpar_id: 2
+      vars:
+        ansible_python_interpreter: /opt/freeware/bin/python3
+        suma_server: suma.example.com
+    
+    solaris:
+      hosts:
+        sol-dev-01:
+          ansible_host: 10.0.2.10
+          ansible_user: root
+          zone_type: global
+        sol-dev-02:
+          ansible_host: 10.0.2.11
+          ansible_user: root
+          zone_type: non-global
+      vars:
+        ansible_python_interpreter: /usr/bin/python3
+        pkg_repository: https://pkg.oracle.com/solaris/release/
+    
+    hpux:
+      hosts:
+        hpux-dev-01:
+          ansible_host: 10.0.3.10
+          ansible_user: root
+        hpux-dev-02:
+          ansible_host: 10.0.3.11
+          ansible_user: root
+      vars:
+        ansible_python_interpreter: /usr/local/bin/python
+        depot_server: swdepot.example.com
+
+  vars:
+    # Common variables for all Unix systems
+    ntp_servers:
+      - ntp1.example.com
+      - ntp2.example.com
+    dns_servers:
+      - 10.0.0.1
+      - 10.0.0.2
+    backup_server: backup.example.com
+    monitoring_server: monitor.example.com

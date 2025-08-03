@@ -1,0 +1,43 @@
+---
+# HP-UX-specific variables
+
+# HP-UX version info
+hpux_version: "11.31"
+hpux_architecture: ia64
+
+# Software depot
+depot_server: swdepot.example.com
+depot_path: /var/opt/depot
+default_depot: /depot/patches/1131
+
+# Ignite-UX settings
+ignite_server: ignite.example.com
+ignite_data_dir: /var/opt/ignite
+
+# ServiceGuard settings
+serviceguard_enabled: false
+cluster_name: "dev-cluster"
+
+# HP-UX specific paths
+hpux_admin_dir: /usr/lbin
+hpux_patch_dir: /tmp/patches
+
+# Kernel parameters
+kernel_params:
+  maxdsiz: 2147483648
+  maxssiz: 134217728
+  maxtsiz: 2147483648
+  shmmax: 68719476736
+  shmmni: 4096
+  semmns: 16384
+  semmni: 4096
+
+# VxVM settings
+vxvm_enabled: true
+vxvm_default_diskgroup: rootdg
+
+# HP-UX services
+hpux_services:
+  - sendmail: stopped
+  - nfs.server: started
+  - swagentd: started

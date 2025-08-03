@@ -1,0 +1,48 @@
+---
+# AIX-specific variables
+
+# AIX version info
+min_aix_version: "7.1"
+supported_aix_versions:
+  - "7.1"
+  - "7.2"
+  - "7.3"
+
+# NIM settings
+nim_master: nim01.example.com
+nim_resources:
+  spot: aix73_spot
+  lpp_source: aix73_lpp
+
+# SUMA settings
+suma_task: "Download"
+suma_rq_type: "Latest"
+suma_filter_ml: "7300-00"
+
+# PowerVM settings
+hmc_server: hmc01.example.com
+vios_servers:
+  - vios1
+  - vios2
+
+# AIX specific paths
+aix_admin_dir: /admin
+aix_inst_dir: /usr/sys/inst.images
+
+# Performance tuning
+vmo_settings:
+  lgpg_regions: 0
+  lgpg_size: 0
+  maxfree: 2048
+  minfree: 1024
+
+io_settings:
+  j2_maxPageReadAhead: 128
+  maxpgahead: 16
+
+# AIX services
+aix_services:
+  - sendmail: stopped
+  - snmpd: stopped
+  - portmap: started
+  - nfsd: started

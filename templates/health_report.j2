@@ -1,0 +1,32 @@
+# Health Report for {{ inventory_hostname }}
+# Generated: {{ ansible_date_time.iso8601 }}
+
+## System Information
+- Hostname: {{ inventory_hostname }}
+- OS: {{ ansible_os_family }}
+- Version: {{ ansible_distribution_version | default('N/A') }}
+- Architecture: {{ ansible_architecture }}
+- Uptime: {{ ansible_uptime_seconds | int // 86400 }} days
+
+## Resource Usage
+{{ disk_check.stdout | default('Disk usage: OK') }}
+{{ memory_check.stdout | default('Memory check: N/A') }}
+{{ cpu_check.stdout | default('CPU check: N/A') }}
+
+## Service Status
+{{ service_check.stdout | default('Service check: N/A') }}
+
+## Recent Errors
+{% if error_check.stdout %}
+{{ error_check.stdout }}
+{% else %}
+No recent errors found
+{% endif %}
+
+## Recommendations
+{% if disk_check.stdout %}
+- WARNING: High disk usage detected
+{% endif %}
+{% if ansible_uptime_seconds | int > 31536000 %}
+- System has been running for over a year, consider scheduling maintenance
+{% endif %}

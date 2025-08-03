@@ -1,0 +1,47 @@
+---
+# Configure NTP across Unix platforms
+
+- name: Configure NTP on AIX
+  block:
+    - name: Set NTP servers in /etc/ntp.conf
+      lineinfile:
+        path: /etc/ntp.conf
+        line: "server {{ item }}"
+        create: yes
+      loop: "{{ ntp_servers }}"
+    
+    - name: Start xntpd service
+      command: startsrc -s xntpd
+      register: ntp_start
+      failed_when: 
+        - ntp_start.rc != 0
+        - '"already active" not in ntp_start.stderr'
+  when: ansible_os_family == 'AIX'
+
+- name: Configure NTP on Solaris
+  block:
+    - name: Set NTP servers
+      lineinfile:
+        path: /etc/inet/ntp.conf
+        line: "server {{ item }}"
+        create: yes
+      loop: "{{ ntp_servers }}"
+    
+    - name: Enable NTP service
+      service:
+        name: ntp
+        state: started
+        enabled: yes
+  when: ansible_os_family == 'Solaris'
+
+- name: Configure NTP on HP-UX
+  block:
+    - name: Set NTP configuration
+      template:
+        src: ntp.conf.j2
+        dest: /etc/ntp.conf
+        backup: yes
+    
+    - name: Start NTP daemon
+      command: /sbin/init.d/xntpd start
+  when: ansible_os_family == 'HP-UX'

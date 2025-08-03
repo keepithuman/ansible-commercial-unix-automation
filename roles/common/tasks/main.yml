@@ -1,0 +1,31 @@
+---
+# Common tasks for all commercial Unix systems
+
+- name: Include OS-specific variables
+  include_vars: "{{ ansible_os_family | lower }}.yml"
+  when: ansible_os_family in ['AIX', 'Solaris', 'HP-UX']
+
+- name: Ensure required directories exist
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - "{{ temp_dir }}"
+    - "{{ log_dir }}"
+    - "{{ backup_dir }}"
+
+- name: Configure NTP
+  include_tasks: ntp.yml
+  when: ntp_servers is defined
+
+- name: Configure SSH
+  include_tasks: ssh.yml
+
+- name: Manage users
+  include_tasks: users.yml
+  when: unix_users is defined
+
+- name: Set system security parameters
+  include_tasks: security.yml
+  when: enable_audit | bool

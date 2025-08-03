@@ -1,0 +1,26 @@
+---
+# Default values for common role
+
+# Directories
+temp_dir: /tmp
+log_dir: /var/log
+backup_dir: /backup
+
+# User defaults
+default_shell: /bin/ksh
+default_home_root: /home
+
+# Security
+enable_audit: true
+ssh_permit_root: no
+ssh_password_auth: no
+
+# Services
+default_services:
+  - sshd
+  - cron
+  - syslog
+
+# NTP
+ntp_servers:
+  - pool.ntp.org

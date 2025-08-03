@@ -1,0 +1,85 @@
+---
+# Universal health check playbook for commercial Unix systems
+
+- name: Health Check for Commercial Unix Systems
+  hosts: all
+  gather_facts: yes
+  
+  tasks:
+    - name: Display system information
+      debug:
+        msg:
+          - "Hostname: {{ inventory_hostname }}"
+          - "OS: {{ ansible_os_family }}"
+          - "Version: {{ ansible_distribution_version | default('N/A') }}"
+          - "Architecture: {{ ansible_architecture }}"
+          - "Uptime: {{ ansible_uptime_seconds | int // 86400 }} days"
+
+    - name: Check disk space
+      shell: |
+        {% if ansible_os_family == 'AIX' %}
+        df -g | awk 'NR>1 && int($4) > 80 {print $7 " is " $4 "% full"}'
+        {% elif ansible_os_family == 'Solaris' %}
+        df -h | awk 'NR>1 && int(substr($5,1,length($5)-1)) > 80 {print $6 " is " $5 " full"}'
+        {% else %}
+        bdf | awk 'NR>1 && int(substr($5,1,length($5)-1)) > 80 {print $6 " is " $5 " full"}'
+        {% endif %}
+      register: disk_check
+      changed_when: false
+      failed_when: disk_check.stdout != ""
+
+    - name: Check memory usage
+      shell: |
+        {% if ansible_os_family == 'AIX' %}
+        svmon -G | grep memory | awk '{print "Memory usage: " int($3/$2*100) "%"}'
+        {% elif ansible_os_family == 'Solaris' %}
+        echo "::memstat" | mdb -k | grep "Total" | awk '{print "Memory usage: " int($3/$5*100) "%"}'
+        {% else %}
+        vmstat 1 2 | tail -1 | awk '{print "Memory usage: " int(100-$5) "%"}'
+        {% endif %}
+      register: memory_check
+      changed_when: false
+
+    - name: Check CPU usage
+      shell: |
+        {% if ansible_os_family == 'AIX' %}
+        vmstat 1 2 | tail -1 | awk '{print "CPU idle: " $16 "%"}'
+        {% elif ansible_os_family == 'Solaris' %}
+        vmstat 1 2 | tail -1 | awk '{print "CPU idle: " $22 "%"}'
+        {% else %}
+        vmstat 1 2 | tail -1 | awk '{print "CPU idle: " $18 "%"}'
+        {% endif %}
+      register: cpu_check
+      changed_when: false
+
+    - name: Check critical services
+      shell: |
+        {% if ansible_os_family == 'AIX' %}
+        lssrc -a | grep -E "sshd|cron|syslogd" | grep -v active || echo "All critical services running"
+        {% elif ansible_os_family == 'Solaris' %}
+        svcs -x | grep -E "ssh|cron|system-log" || echo "All critical services running"
+        {% else %}
+        ps -ef | grep -E "sshd|cron|syslogd" | grep -v grep > /dev/null && echo "All critical services running"
+        {% endif %}
+      register: service_check
+      changed_when: false
+
+    - name: Check for errors in system logs
+      shell: |
+        {% if ansible_os_family == 'AIX' %}
+        errpt -d H -T PERM | head -10
+        {% elif ansible_os_family == 'Solaris' %}
+        dmesg | grep -i error | tail -10
+        {% else %}
+        dmesg | grep -i error | tail -10
+        {% endif %}
+      register: error_check
+      changed_when: false
+      failed_when: false
+
+    - name: Generate health report
+      template:
+        src: health_report.j2
+        dest: "/tmp/health_report_{{ inventory_hostname }}_{{ ansible_date_time.epoch }}.txt"
+      delegate_to: localhost
+      run_once: true

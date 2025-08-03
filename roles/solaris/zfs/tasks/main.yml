@@ -1,0 +1,33 @@
+---
+# Solaris ZFS management tasks
+
+- name: List ZFS pools
+  command: zpool list -H
+  register: zpool_list
+  changed_when: false
+  failed_when: false
+
+- name: Create ZFS pool
+  command: zpool create {{ zfs_pool_name }} {{ zfs_pool_devices | join(' ') }}
+  when:
+    - zfs_pool_name is defined
+    - zfs_pool_name not in zpool_list.stdout
+    - zfs_pool_devices is defined
+
+- name: Create ZFS filesystems
+  zfs:
+    name: "{{ item.name }}"
+    state: present
+    extra_zfs_properties:
+      mountpoint: "{{ item.mountpoint | default(omit) }}"
+      compression: "{{ item.compression | default('lz4') }}"
+      quota: "{{ item.quota | default(omit) }}"
+      recordsize: "{{ item.recordsize | default('128k') }}"
+  loop: "{{ zfs_filesystems | default([]) }}"
+
+- name: Create ZFS snapshots
+  command: zfs snapshot {{ item }}
+  loop: "{{ zfs_snapshots | default([]) }}"
+  register: snapshot_result
+  changed_when: snapshot_result.rc == 0
+  failed_when: false

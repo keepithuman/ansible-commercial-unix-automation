@@ -1,0 +1,65 @@
+---
+# Solaris Package Update Playbook
+
+- name: Solaris Package Management
+  hosts: solaris
+  gather_facts: yes
+  serial: "{{ patch_serial | default(2) }}"
+  
+  pre_tasks:
+    - name: Check Solaris version
+      command: uname -v
+      register: solaris_version
+      changed_when: false
+    
+    - name: Create BE snapshot before patching
+      command: beadm create {{ ansible_hostname }}-{{ ansible_date_time.epoch }}
+      when: 
+        - ansible_distribution_version is version('11', '>=')
+        - create_be_snapshot | default(true) | bool
+  
+  tasks:
+    - name: Update package repository
+      command: pkg refresh
+      when: ansible_distribution_version is version('11', '>=')
+    
+    - name: Check for available updates
+      command: pkg list -u
+      register: available_updates
+      changed_when: false
+      failed_when: false
+    
+    - name: Display available updates
+      debug:
+        var: available_updates.stdout_lines
+      when: available_updates.rc == 0
+    
+    - name: Update all packages (Solaris 11+)
+      command: pkg update -nv
+      register: update_preview
+      when:
+        - ansible_distribution_version is version('11', '>=')
+        - preview_only | default(true) | bool
+    
+    - name: Apply updates
+      command: pkg update
+      when:
+        - ansible_distribution_version is version('11', '>=')
+        - not preview_only | default(true) | bool
+        - apply_updates | default(false) | bool
+    
+    - name: Handle Solaris 10 patches
+      include_tasks: solaris10_patches.yml
+      when: ansible_distribution_version is version('11', '<')
+  
+  post_tasks:
+    - name: List boot environments
+      command: beadm list
+      register: be_list
+      changed_when: false
+      when: ansible_distribution_version is version('11', '>=')
+    
+    - name: Display BE list
+      debug:
+        var: be_list.stdout_lines
+      when: be_list is defined

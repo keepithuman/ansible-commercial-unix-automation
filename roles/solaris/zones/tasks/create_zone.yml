@@ -1,0 +1,40 @@
+---
+# Create Solaris zone
+
+- name: Create zone configuration
+  shell: |
+    zonecfg -z {{ zone_name }} << EOF
+    create
+    set zonepath={{ zone_path | default('/zones/' + zone_name) }}
+    set brand={{ zone_brand | default('native') }}
+    set autoboot={{ zone_autoboot | default('true') }}
+    set limitpriv={{ zone_limitpriv | default('default') }}
+    add net
+    set address={{ zone_ip_address }}
+    set physical={{ zone_network_interface | default('net0') }}
+    end
+    {% for resource in zone_resources | default([]) %}
+    {{ resource }}
+    {% endfor %}
+    verify
+    commit
+    EOF
+  register: zone_create
+  changed_when: zone_create.rc == 0
+
+- name: Install zone
+  command: zoneadm -z {{ zone_name }} install
+  register: zone_install
+  changed_when: zone_install.rc == 0
+
+- name: Boot zone for first time
+  command: zoneadm -z {{ zone_name }} boot
+  register: zone_boot
+  changed_when: zone_boot.rc == 0
+
+- name: Wait for zone to be ready
+  command: zoneadm -z {{ zone_name }} list -v
+  register: zone_status
+  until: '"running" in zone_status.stdout'
+  retries: 30
+  delay: 10
